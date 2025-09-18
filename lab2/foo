@@ -1,0 +1,59 @@
+#!/bin/bash
+
+echo "Размер файла:"
+total=$(wc -c < Q)
+echo "$total байт"
+echo ""
+
+echo "=== СОРТИРОВКА ПО УБЫВАНИЮ ЧАСТОТЫ ==="
+echo "Кол-во  | Код(hex)  | Вероятность  | I(aⱼ) [бит]"
+od -An -t u1 -v -w1 Q | sort | uniq -c | sort -nr | awk -v total="$total" '{
+    probability = $1 / total;
+    information = -log(probability)/log(2);
+    total_information += $1 * information;
+    printf "%6d  |     %02X    | %1.3f     | %8.3f\n", $1, $2, probability, information
+} END {
+    printf "\nCywмарное количество информации I(Q) = %8.3f бит\n", total_information
+}'
+
+echo ""
+echo "=== СОРТИРОВКА ПО АЛФАВИТУ (КОДУ СИМВОЛА) ==="
+echo "Кол-во  | Код(hex)  | Вероятность  | I(aⱼ) [бит]"
+od -An -t u1 -v -w1 Q | sort | uniq -c | sort -k2,2n | awk -v total="$total" '{
+    probability = $1 / total;
+    information = -log(probability)/log(2);
+    total_information += $1 * information;
+    printf "%6d  |     %02X    | %1.3f     | %8.3f\n", $1, $2, probability, information
+} END {
+    printf "\nCywмарное количество информации I(Q) = %8.3f бит\n", total_information
+}'
+
+total_info=$(od -An -t u1 -v -w1 Q | sort | uniq -c | awk -v total="$total" '{
+    probability = $1 / total;
+    information = -log(probability)/log(2);
+    total_info += $1 * information;
+} END {print total_info}')
+
+echo ""
+echo "а) Длина файла в битах:"
+L_bits=$(echo "$total * 8" | bc -l)
+echo "L(Q) = $total × 8 = $L_bits бит"
+echo "I_БП(Q) = $total_info бит"
+fractional_part=$(echo "$total_info - ${total_info%.*}" | bc -l)
+fractional_exp=$(echo "$fractional_part" | awk '{printf "%.2e", $1}')
+echo "Дробная часть {I_БП(Q)} = $fractional_exp"
+
+echo ""
+echo "б) Длина файла в октетах:"
+echo "L(Q) = $total октетов"
+I_octets=$(echo "$total_info / 8" | bc -l)
+echo "I_БП(Q) = $total_info / 8 = $I_octets октетов"
+
+echo ""
+echo "Оценки снизу длин в октетах для сжатия:"
+E=$(echo "scale=2; $I_octets" | bc -l)
+echo "E = [I_БП(Q)] = $E октетов (только сжатый текст)"
+G64=$(echo "scale=2; $E + 256 * 8" | bc -l)
+echo "G_64 = E + 256×8 = $E + 2048 = $G64 октетов (с 64-битной таблицей)"
+G8=$(echo "scale=2; $E + 256 * 1" | bc -l)
+echo "G_8 = E + 256×1 = $E + 256 = $G8 октетов (с 8-битной таблицей)"
