@@ -1,0 +1,18 @@
+#!/bin/bash
+
+DIRECTORY=${1:-.}
+
+for FILE in "$DIRECTORY"/*; do
+    if [ -f "$FILE" ]; then
+        echo ""
+        echo "Файл: $(basename "$FILE")"
+        echo "10 наиболее частых октета:"
+        echo "Кол-во  | Код(hex)  | Вероятность  | I(aⱼ) [бит]"
+        od -An -t u1 -v -w1 "$FILE" | sort | uniq -c | sort -nr | head -10 | awk -v total="$(wc -c < "$FILE")" '{
+            probability = $1 / total;
+            information = -log(probability)/log(2);
+            printf "%6d  |     %02X    | %1.3f     | %8.3f\n", $1, $2, probability, information
+        }'
+        echo "----------------------------------------------"
+    fi
+done

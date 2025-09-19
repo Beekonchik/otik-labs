@@ -1,5 +1,5 @@
 #!/bin/bash
-ю.
+
 FILE=${1:-Q}
 
 echo "Анализ файла: $FILE"
