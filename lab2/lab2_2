@@ -1,0 +1,65 @@
+#!/bin/bash
+
+FILE=${1:-Q}
+echo "Анализ файла (Unicode символы): $FILE"
+
+echo "Размер файла в байтах:"
+total_bytes=$(wc -c < "$FILE")
+echo "$total_bytes байт"
+
+echo ""
+echo "=== АНАЛИЗ UNICODE СИМВОЛОВ ==="
+
+total_chars=$(iconv -f UTF-8 -t UTF-32 "$FILE" | wc -c)
+total_chars=$((total_chars / 4))  # UTF-32 = 4 байта на символ
+
+echo "Общее количество символов: $total_chars"
+
+iconv -f UTF-8 -t UTF-32 "$FILE" | od -An -t u4 -w4 -v | sort | uniq -c | sort -nr > /tmp/unicode_freq
+
+unique_chars=$(wc -l < /tmp/unicode_freq)
+echo "Уникальных символов (|A_1|): $unique_chars"
+
+echo ""
+echo "=== СОРТИРОВКА ПО УБЫВАНИЮ ЧАСТОТЫ ==="
+echo "Кол-во  | Unicode  | Вероятность  | I(a_j) [бит]"
+
+total_info=0
+while read count code; do
+    # Убираем ведущие пробелы из count
+    count=$(echo $count | sed 's/^[ \t]*//')
+    
+    if [ -n "$count" ] && [ -n "$code" ]; then
+        probability=$(echo "scale=6; $count / $total_chars" | bc -l)
+        information=$(echo "scale=3; -l($probability) / l(2)" | bc -l 2>/dev/null || echo 0)
+        total_info=$(echo "scale=3; $total_info + $count * $information" | bc -l)
+        
+        # Форматируем Unicode код
+        hex_code=$(printf "U+%04X" $code)
+        printf "%6d  | %8s | %1.3f      | %8.3f\n" "$count" "$hex_code" "$probability" "$information"
+    fi
+done < /tmp/unicode_freq
+
+echo ""
+echo "Суммарное количество информации I(Q) = $total_info бит"
+
+# Расчет размеров архивов
+echo ""
+echo "=== ОЦЕНКИ РАЗМЕРОВ АРХИВОВ ==="
+
+# 1. Только сжатый текст
+E=$(echo "scale=2; $total_info / 8" | bc -l)
+echo "E = [I_БП(Q)] = $E октетов (только сжатый текст)"
+
+# 2. С алфавитом переменной длины (средняя длина UTF-8 символа + 8 байт на частоту)
+avg_char_bytes=$(echo "scale=2; $total_bytes / $total_chars" | bc -l)
+table_size_var=$(echo "scale=2; $unique_chars * (8 + $avg_char_bytes)" | bc -l)
+G_var=$(echo "scale=2; $E + $table_size_var" | bc -l)
+echo "G_var = E + |A_1|*(8 + avg_char_bytes) = $E + $table_size_var = $G_var октетов"
+
+# 3. С фиксированным Unicode (все 1 114 112 символов)
+unicode_size=1114112
+G_fixed=$(echo "scale=2; $E + 8 * $unicode_size" | bc -l)
+echo "G_fixed = E + 8*|Unicode| = $E + 8912896 = $G_fixed октетов"
+
+rm -f /tmp/unicode_freq
