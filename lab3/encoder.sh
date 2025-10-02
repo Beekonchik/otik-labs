@@ -15,14 +15,7 @@ echo "Создание архива: $OUTPUT_FILE"
     # Версия формата (2 байта)
     printf "\x00\x00"
     # Длина файла (8 байт)
-    printf "\\$(printf '%03o' $((FILE_SIZE & 0xFF)))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 8) & 0xFF )))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 16) & 0xFF )))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 24) & 0xFF )))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 32) & 0xFF )))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 40) & 0xFF )))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 48) & 0xFF )))"
-    printf "\\$(printf '%03o' $(( (FILE_SIZE >> 56) & 0xFF )))"
+    printf "%016x" $FILE_SIZE | xxd -r -p
 
     cat "$INPUT_FILE"
 } > "$OUTPUT_FILE"

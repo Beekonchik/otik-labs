@@ -7,8 +7,11 @@ echo "Декодирование архива: $ARCHIVE_FILE"
 echo "Выходной файл: $OUTPUT_FILE"
 
 SIGNATURE=$(head -c 6 "$ARCHIVE_FILE")
-VERSION=$(head -c 8 "$ARCHIVE_FILE" | tail -c 2 | od -An -t u2 | tr -d ' ')
-FILE_SIZE=$(head -c 16 "$ARCHIVE_FILE" | tail -c 8 | od -An -t u8 | tr -d ' ')
+VERSION_HEX=$(head -c 8 "$ARCHIVE_FILE" | tail -c 2 | xxd -p)
+FILE_SIZE_HEX=$(head -c 16 "$ARCHIVE_FILE" | tail -c 8 | xxd -p)
+
+VERSION=$((16#$VERSION_HEX))
+FILE_SIZE=$((16#$FILE_SIZE_HEX))
 
 echo "Сигнатура: '$SIGNATURE'"
 echo "Версия: $VERSION"
