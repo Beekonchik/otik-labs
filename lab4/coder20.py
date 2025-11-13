@@ -9,10 +9,10 @@ class HuffmanCoder:
         self.signature = bytes([0x6B, 0x6C, 0x75, 0x73, 0x68, 0x61])  # "klusha"
         self.major_version = 2
         self.minor_version = 0
-        self.context_algorithm = 1  # Код алгоритма контекстного сжатия
+        self.context_algorithm = 0 
         self.context_free = 0
         self.error_protection = 0
-        self.reserved = bytes(5)  # 5 зарезервированных байт
+        self.reserved = bytes(5)
         
     class HuffmanNode:
         def __init__(self, char, freq):
@@ -107,7 +107,7 @@ class HuffmanCoder:
         """Форматирует размер файла в читаемом виде"""
         if size == 0:
             return "0 B"
-        units = ['B', 'KB', 'MB', 'GB']
+        units = ['байт', 'килобайт']
         unit_index = 0
         while size >= 1024 and unit_index < len(units) - 1:
             size /= 1024.0
@@ -123,9 +123,8 @@ class HuffmanCoder:
     def char_to_string(self, char):
         """Преобразует байт в читаемое строковое представление"""
         byte_val = char
-        if 32 <= byte_val <= 126:  # Печатные ASCII символы
+        if 32 <= byte_val <= 126:
             char_str = chr(byte_val)
-            # Экранируем обратный слеш и апостроф
             if char_str == '\\':
                 return "'\\\\'"
             elif char_str == "'":
@@ -133,7 +132,6 @@ class HuffmanCoder:
             else:
                 return f"'{char_str}'"
         else:
-            # Непечатные символы показываем как hex
             return f"0x{byte_val:02x}"
     
     def print_codes(self, codes):
@@ -207,9 +205,8 @@ class HuffmanCoder:
             print(f"Файл успешно сжат: {input_file} -> {output_file}")
             print(f"Исходный размер: {self.format_size(original_size)}")
             print(f"Сжатый размер: {self.format_size(compressed_size)}")
-            print(f"Размер дерева: {tree_size} байт")
-            print(f"Биты для выравнивания: {padding_bits}")
-            
+            print(f"Длина сжатых данных: {len(encoded_data) * 8 - padding_bits} бит")
+                        
             # Выводим дополнительную информацию только если входной файл - Q
             if input_file == "Q":
                 formatted_tree = self.format_encoded_tree(encoded_tree)

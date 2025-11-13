@@ -7,7 +7,7 @@ class HuffmanDecoder:
         self.signature = bytes([0x6B, 0x6C, 0x75, 0x73, 0x68, 0x61])  # "klusha"
         self.expected_major_version = 2
         self.expected_minor_version = 0
-        self.expected_context_algorithm = 1
+        self.expected_context_algorithm = 0
         
     class HuffmanNode:
         def __init__(self, char=None):
@@ -19,7 +19,7 @@ class HuffmanDecoder:
         """Форматирует размер файла в читаемом виде"""
         if size == 0:
             return "0 B"
-        units = ['B', 'KB', 'MB', 'GB']
+        units = ['Бит', 'Байт', 'КБ']
         unit_index = 0
         while size >= 1024 and unit_index < len(units) - 1:
             size /= 1024.0
