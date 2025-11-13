@@ -191,8 +191,8 @@ class HuffmanDecoder:
             with open(output_file, 'wb') as f:
                 f.write(decoded_data)
                 
-            print(f"Файл успешно разжат: {input_file} -> {output_file}")
-            print(f"Разжатый размер: {self.format_size(len(decoded_data))}")
+            print(f"Файл успешно восстановлен: {input_file} -> {output_file}")
+            print(f"Размер восстановленного файла: {self.format_size(len(decoded_data))}")
             
         except FileNotFoundError:
             print(f"Ошибка: Файл {input_file} не найден")
