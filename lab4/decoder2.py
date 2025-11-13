@@ -19,7 +19,7 @@ class HuffmanDecoder:
         """Форматирует размер файла в читаемом виде"""
         if size == 0:
             return "0 B"
-        units = ['Байт', 'КБ']
+        units = ['байт', 'КБ']
         unit_index = 0
         while size >= 1024 and unit_index < len(units) - 1:
             size /= 1024.0
@@ -192,6 +192,7 @@ class HuffmanDecoder:
                 f.write(decoded_data)
                 
             print(f"Файл успешно восстановлен: {input_file} -> {output_file}")
+            print(f"Исходный размер: {self.format_size(original_size)}")
             print(f"Размер восстановленного файла: {self.format_size(len(decoded_data))}")
             
         except FileNotFoundError:

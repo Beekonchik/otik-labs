@@ -107,7 +107,7 @@ class HuffmanCoder:
         """Форматирует размер файла в читаемом виде"""
         if size == 0:
             return "0 B"
-        units = ['байт', 'килобайт']
+        units = ['байт', 'КБ']
         unit_index = 0
         while size >= 1024 and unit_index < len(units) - 1:
             size /= 1024.0

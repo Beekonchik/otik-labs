@@ -24,7 +24,7 @@ class HuffmanCoder10:
         
         if unit_index == 0:  # Байты
             return f"{size_float:.0f} {units[unit_index]}"
-        else:  # КБ, МБ, ГБ
+        else:
             return f"{size_float:.2f} {units[unit_index]}"
     
     def compress_file(self, input_file):
