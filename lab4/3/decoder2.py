@@ -2,11 +2,12 @@ import os
 import struct
 import sys
 
-class HuffmanDecoder20:
+class HuffmanDecoder:
     def __init__(self):
+        self.signature = bytes([0x6B, 0x6C, 0x75, 0x73, 0x68, 0x61])  # "klusha"
         self.expected_major_version = 2
         self.expected_minor_version = 0
-        self.expected_context_algorithm = 0
+        self.expected_context_free = 1
         
     class HuffmanNode:
         def __init__(self, char=None):
@@ -26,9 +27,14 @@ class HuffmanDecoder20:
         return f"{size:.2f} {units[unit_index]}"
     
     def validate_header(self, header_data):
-        """Проверяет корректность заголовка файла для версии 2.0"""
+        """Проверяет корректность заголовка файла"""
         if len(header_data) < 24:
             raise ValueError("Заголовок файла слишком короткий")
+        
+        # Проверяем сигнатуру
+        signature = header_data[0:6]
+        if signature != self.signature:
+            return False
         
         # Проверяем версию
         major_version = header_data[6]
@@ -37,8 +43,8 @@ class HuffmanDecoder20:
             return False
         
         # Проверяем алгоритм сжатия
-        context_algorithm = header_data[8]
-        if context_algorithm != self.expected_context_algorithm:
+        context_free = header_data[9]
+        if context_free != self.expected_context_free:
             return False
         
         return True
@@ -118,7 +124,7 @@ class HuffmanDecoder20:
         return bytes(decoded_data)
     
     def decompress_file(self, input_file):
-        """Разжимает файл, сжатый методом Хаффмана версии 2.0"""
+        """Разжимает файл, сжатый методом Хаффмана"""
         try:
             # Генерируем имя выходного файла
             base_name = input_file.replace('.klusha', '')
@@ -143,8 +149,10 @@ class HuffmanDecoder20:
                 # Читаем и проверяем заголовок (24 байта)
                 header_data = f.read(24)
                 if not self.validate_header(header_data):
-                    print("Ошибка: Неверная версия формата или алгоритм для версии 2.0")
+                    print("Сигнатура: не совпадает")
                     return
+                
+                print("Сигнатура: klusha")
                 
                 # Извлекаем данные из заголовка
                 original_size = struct.unpack('<Q', header_data[16:24])[0]
@@ -184,6 +192,7 @@ class HuffmanDecoder20:
                 f.write(decoded_data)
                 
             print(f"Файл успешно восстановлен: {input_file} -> {output_file}")
+            print(f"Исходный размер: {self.format_size(original_size)}")
             print(f"Размер восстановленного файла: {self.format_size(len(decoded_data))}")
             
         except FileNotFoundError:
@@ -192,18 +201,18 @@ class HuffmanDecoder20:
             print(f"Ошибка при разжатии: {e}")
 
 def main():
-    """Основная функция для самостоятельного использования decoder2"""
-    decoder = HuffmanDecoder20()
+    decoder = HuffmanDecoder()
     
     # Обработка аргументов командной строки
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
     else:
+        # Значения по умолчанию
         input_file = "Q.klusha"
     
     # Проверяем существование входного файла
     if not os.path.exists(input_file):
-        print(f"Ошибка: Файл {input_file} не найден")
+        print(f"Ошибка: Файл {input_file} не найден в текущей директории")
         return
     
     # Разжимаем файл

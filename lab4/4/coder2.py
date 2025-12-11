@@ -10,7 +10,7 @@ class HuffmanCoder:
         self.major_version = 2
         self.minor_version = 0
         self.context_algorithm = 0 
-        self.context_free = 0
+        self.context_free = 1
         self.error_protection = 0
         self.reserved = bytes(5)
         
@@ -105,6 +105,8 @@ class HuffmanCoder:
     
     def format_size(self, size):
         """Форматирует размер файла в читаемом виде"""
+        if size == 0:
+            return "0 B"
         units = ['байт', 'КБ']
         unit_index = 0
         while size >= 1024 and unit_index < len(units) - 1:
@@ -131,13 +133,6 @@ class HuffmanCoder:
                 return f"'{char_str}'"
         else:
             return f"0x{byte_val:02x}"
-    
-    def print_codes(self, codes):
-        """Выводит коды символов в требуемом формате"""
-        print("Коды символов:")
-        for char, code in sorted(codes.items(), key=lambda x: (len(x[1]), x[1])):
-            char_str = self.char_to_string(char)
-            print(f"{char_str}: {code}")
     
     def compress_file(self, input_file):
         """Сжимает файл методом Хаффмана"""
@@ -203,13 +198,12 @@ class HuffmanCoder:
             print(f"Файл успешно сжат: {input_file} -> {output_file}")
             print(f"Исходный размер: {self.format_size(original_size)}")
             print(f"Сжатый размер: {self.format_size(compressed_size)}")
+            print(f"Длина сжатых данных: {len(encoded_data) * 8 - padding_bits} бит")
                         
             # Выводим дополнительную информацию только если входной файл - Q
             if input_file == "Q":
                 formatted_tree = self.format_encoded_tree(encoded_tree)
                 print(f"Закодированное дерево: {formatted_tree}")
-                if codes:
-                    self.print_codes(codes)
             
         except FileNotFoundError:
             print(f"Ошибка: Файл {input_file} не найден")

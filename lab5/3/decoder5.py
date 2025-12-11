@@ -2,9 +2,9 @@ import os
 import struct
 import sys
 
-class LZ78:
+class LZ77:
     def __init__(self):
-        self.expected_major_version = 4
+        self.expected_major_version = 5
         self.expected_minor_version = 0
         self.expected_context_algorithm = 1
     
@@ -35,57 +35,66 @@ class LZ78:
         
         return True
     
-    def unpack_fixed_bit_pairs(self, data, num_pairs):
-        """Распаковка пар с фиксированной длиной"""
-        pairs = []
+    def decode_bits(self, bit_data, num_tokens):
+        """Декодирование битового потока"""
+        # Конвертируем в битовую строку
+        bit_string = ''
+        for byte in bit_data:
+            bit_string += format(byte, '08b')
+        
+        tokens = []
         pos = 0
         
-        for _ in range(num_pairs):
-            if pos + 5 > len(data):  # 4 байта P + 1 байт a
+        for _ in range(num_tokens):
+            if pos + 16 > len(bit_string):
                 break
             
-            # Читаем P (4 байта, big-endian)
-            parent = struct.unpack('>I', data[pos:pos+4])[0]
-            pos += 4
+            # Читаем L-3 (6 бит)
+            l_minus_3 = int(bit_string[pos:pos+6], 2)
+            pos += 6
             
-            # Читаем a (1 байт)
-            char = data[pos]
-            pos += 1
+            # Читаем S (10 бит)
+            next_char = int(bit_string[pos:pos+10], 2)
+            pos += 10
             
-            pairs.append((parent, char))
+            # Восстанавливаем длину
+            length = l_minus_3 + 3 if l_minus_3 > 0 else 0
+            
+            tokens.append((length, next_char))
         
-        return pairs
+        return tokens
     
-    def lz78_decompress(self, pairs):
-        """
-        LZ78-распаковка по концепту 1978 года
-        """
-        dictionary = {0: b""}  # Словарь: номер -> строка
+    def decompress_lz77_simple(self, tokens):
+        """Декомпрессия LZ77 (упрощенная версия)"""
         result = bytearray()
-        next_code = 1
+        buffer = bytearray(4096)  # Буфер для скользящего окна
+        buf_pos = 0
         
-        for parent, char in pairs:
-            # Получаем строку из словаря
-            if parent in dictionary:
-                parent_str = dictionary[parent]
+        for length, next_char in tokens:
+            if length == 0:
+                # Литерал
+                result.append(next_char)
+                buffer[buf_pos % 4096] = next_char
+                buf_pos += 1
             else:
-                # Ошибка - ссылка на несуществующий индекс
-                parent_str = b""
-            
-            # Новая строка = родительская строка + новый символ
-            new_str = parent_str + bytes([char])
-            
-            # Добавляем в результат
-            result.extend(new_str)
-            
-            # Добавляем новую строку в словарь
-            dictionary[next_code] = new_str
-            next_code += 1
+                # Копирование из буфера
+                # В упрощенной версии копируем последний символ length раз
+                for _ in range(length):
+                    if buf_pos > 0:
+                        last_byte = buffer[(buf_pos - 1) % 4096]
+                        result.append(last_byte)
+                        buffer[buf_pos % 4096] = last_byte
+                        buf_pos += 1
+                
+                # Добавляем следующий символ
+                result.append(next_char)
+                buffer[buf_pos % 4096] = next_char
+                buf_pos += 1
         
         return bytes(result)
     
     def decompress_file(self, input_file):
-        """Распаковка LZ78-файла"""
+        """Основная функция декомпрессии"""
         try:
             if input_file.endswith('.klusha'):
                 base_name = input_file[:-7]
@@ -107,18 +116,15 @@ class LZ78:
                 
                 algo_data = f.read(algo_size)
             
-            # Извлекаем количество пар
-            num_pairs = struct.unpack('>I', algo_data[0:4])[0]
+            # Извлекаем количество токенов
+            num_tokens = struct.unpack('>I', algo_data[0:4])[0]
             compressed_data = algo_data[4:]
             
-            # Распаковываем пары
-            pairs = self.unpack_fixed_bit_pairs(compressed_data, num_pairs)
+            # Декодируем токены
+            tokens = self.decode_bits(compressed_data, num_tokens)
             
-            if len(pairs) != num_pairs:
-                print(f"Предупреждение: ожидалось {num_pairs} пар, получено {len(pairs)}")
-            
-            # Декомпрессия LZ78
-            decompressed = self.lz78_decompress(pairs)
+            # Декомпрессия
+            decompressed = self.decompress_lz77_simple(tokens)
             
             # Обрезаем до исходного размера
             if len(decompressed) > original_size:
@@ -131,16 +137,11 @@ class LZ78:
             print(f"Файл успешно восстановлен: {input_file} -> {output_file}")
             print(f"Размер восстановленного файла: {self.format_size(len(decompressed))}")
             
-            # Отладочная информация
-            print(f"Количество пар при декомпрессии: {len(pairs)}")
-            
         except Exception as e:
             print(f"Ошибка: {e}")
-            import traceback
-            traceback.print_exc()
 
 def main():
-    decoder = LZ78()
+    decoder = LZ77()
     
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
