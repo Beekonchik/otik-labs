@@ -7,7 +7,7 @@ class HuffmanDecoder:
         self.signature = bytes([0x6B, 0x6C, 0x75, 0x73, 0x68, 0x61])  # "klusha"
         self.expected_major_version = 2
         self.expected_minor_version = 0
-        self.expected_context_algorithm = 0
+        self.expected_context_free = 1
         
     class HuffmanNode:
         def __init__(self, char=None):
@@ -43,8 +43,8 @@ class HuffmanDecoder:
             return False
         
         # Проверяем алгоритм сжатия
-        context_algorithm = header_data[8]
-        if context_algorithm != self.expected_context_algorithm:
+        context_free = header_data[9]
+        if context_free != self.expected_context_free:
             return False
         
         return True
