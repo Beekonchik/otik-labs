@@ -31,7 +31,6 @@ class SmartDecoder:
             raise ValueError(f"Ошибка при чтении заголовка файла: {e}")
     
     def decompress_file(self, input_file):
-        """Разжимает файл, автоматически определяя версию формата"""
         try:
             if not os.path.exists(input_file):
                 print(f"Ошибка: Файл {input_file} не найден")

@@ -2,11 +2,12 @@ import os
 import struct
 import sys
 
-class LZ77:
+class LZ77_Decoder_Correct:
     def __init__(self):
         self.expected_major_version = 5
         self.expected_minor_version = 0
         self.expected_context_algorithm = 1
+        self.min_match_length = 3
     
     def format_size(self, size):
         """Форматирует размер файла"""
@@ -35,61 +36,99 @@ class LZ77:
         
         return True
     
-    def decode_bits(self, bit_data, num_tokens):
-        """Декодирование битового потока"""
-        # Конвертируем в битовую строку
-        bit_string = ''
-        for byte in bit_data:
-            bit_string += format(byte, '08b')
+    def decode_with_flags(self, flags, compressed_data, num_tokens, padding_bits):
+        """
+        Декодирование с использованием флаг-байтов
+        """
+        # Преобразуем флаг-байты в битовую строку
+        flag_bits = ''
+        for flag_byte in flags:
+            flag_bits += format(flag_byte, '08b')
+        
+        # Преобразуем сжатые данные в битовую строку
+        data_bits = ''
+        for byte in compressed_data:
+            data_bits += format(byte, '08b')
+        
+        # Убираем padding биты
+        if padding_bits > 0:
+            data_bits = data_bits[:-padding_bits]
         
         tokens = []
-        pos = 0
+        flag_pos = 0
+        data_pos = 0
         
         for _ in range(num_tokens):
-            if pos + 16 > len(bit_string):
+            if flag_pos >= len(flag_bits):
                 break
             
-            # Читаем L-3 (6 бит)
-            l_minus_3 = int(bit_string[pos:pos+6], 2)
-            pos += 6
+            # Читаем флаг
+            is_reference = flag_bits[flag_pos] == '1'
+            flag_pos += 1
             
-            # Читаем S (10 бит)
-            next_char = int(bit_string[pos:pos+10], 2)
-            pos += 10
-            
-            # Восстанавливаем длину
-            length = l_minus_3 + 3 if l_minus_3 > 0 else 0
-            
-            tokens.append((length, next_char))
+            if is_reference:
+                # Ссылка: (L-3):6, S:10
+                if data_pos + 16 > len(data_bits):
+                    break
+                
+                # Читаем L-3 (6 бит)
+                l_minus_3 = int(data_bits[data_pos:data_pos+6], 2)
+                data_pos += 6
+                
+                # Читаем S (10 бит)
+                offset = int(data_bits[data_pos:data_pos+10], 2)
+                data_pos += 10
+                
+                # Восстанавливаем длину
+                length = l_minus_3 + self.min_match_length
+                
+                tokens.append(('reference', offset, length))
+            else:
+                # Символ: (c:8)
+                if data_pos + 8 > len(data_bits):
+                    break
+                
+                char = int(data_bits[data_pos:data_pos+8], 2)
+                data_pos += 8
+                
+                tokens.append(('literal', char, 0))
         
         return tokens
     
-    def decompress_lz77_simple(self, tokens):
-        """Декомпрессия LZ77 (упрощенная версия)"""
+    def decompress_lz77(self, tokens):
+        """
+        Распаковка LZ77
+        """
         result = bytearray()
-        buffer = bytearray(4096)  # Буфер для скользящего окна
-        buf_pos = 0
+        window = bytearray(1024)  # Скользящее окно
+        window_pos = 0
         
-        for length, next_char in tokens:
-            if length == 0:
-                # Литерал
-                result.append(next_char)
-                buffer[buf_pos % 4096] = next_char
-                buf_pos += 1
+        for token_type, value1, value2 in tokens:
+            if token_type == 'literal':
+                # Символ
+                result.append(value1)
+                window[window_pos % 1024] = value1
+                window_pos += 1
             else:
-                # Копирование из буфера
-                # В упрощенной версии копируем последний символ length раз
-                for _ in range(length):
-                    if buf_pos > 0:
-                        last_byte = buffer[(buf_pos - 1) % 4096]
-                        result.append(last_byte)
-                        buffer[buf_pos % 4096] = last_byte
-                        buf_pos += 1
+                # Ссылка: offset, length
+                offset, length = value1, value2
                 
-                # Добавляем следующий символ
-                result.append(next_char)
-                buffer[buf_pos % 4096] = next_char
-                buf_pos += 1
+                # Копируем из окна
+                for i in range(length):
+                    if offset > 0 and offset <= min(window_pos, 1024):
+                        # Вычисляем позицию в окне
+                        src_pos = (window_pos - offset) % 1024
+                        byte_to_copy = window[src_pos]
+                    else:
+                        # Если смещение некорректное, копируем последний символ
+                        if result:
+                            byte_to_copy = result[-1]
+                        else:
+                            byte_to_copy = 0
+                    
+                    result.append(byte_to_copy)
+                    window[window_pos % 1024] = byte_to_copy
+                    window_pos += 1
         
         return bytes(result)
     
@@ -116,15 +155,32 @@ class LZ77:
                 
                 algo_data = f.read(algo_size)
             
-            # Извлекаем количество токенов
-            num_tokens = struct.unpack('>I', algo_data[0:4])[0]
-            compressed_data = algo_data[4:]
+            # Разбираем алгоритмические данные:
+            # 1. Количество флаг-байтов (4 байта)
+            num_flag_bytes = struct.unpack('>I', algo_data[0:4])[0]
+            
+            # 2. Флаг-байты
+            flags_start = 4
+            flags_end = flags_start + num_flag_bytes
+            flags = list(algo_data[flags_start:flags_end])
+            
+            # 3. Количество токенов (4 байта)
+            num_tokens = struct.unpack('>I', algo_data[flags_end:flags_end+4])[0]
+            
+            # 4. Сжатые данные и 5. Padding битов
+            data_start = flags_end + 4
+            
+            # Последний байт - padding биты
+            padding_bits = algo_data[-1]
+            
+            # Сжатые данные - все между data_start и последним байтом
+            compressed_data = algo_data[data_start:-1]
             
             # Декодируем токены
-            tokens = self.decode_bits(compressed_data, num_tokens)
+            tokens = self.decode_with_flags(flags, compressed_data, num_tokens, padding_bits)
             
             # Декомпрессия
-            decompressed = self.decompress_lz77_simple(tokens)
+            decompressed = self.decompress_lz77(tokens)
             
             # Обрезаем до исходного размера
             if len(decompressed) > original_size:
@@ -139,9 +195,11 @@ class LZ77:
             
         except Exception as e:
             print(f"Ошибка: {e}")
+            import traceback
+            traceback.print_exc()
 
 def main():
-    decoder = LZ77()
+    decoder = LZ77_Decoder_Correct()
     
     if len(sys.argv) > 1:
         input_file = sys.argv[1]

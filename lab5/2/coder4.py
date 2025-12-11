@@ -28,49 +28,58 @@ class LZ78:
             return f"{size_float:.2f} {units[unit_index]}"
     
     def lz78_compress(self, data):
-        """
-        LZ78-сжатие по концепту 1978 года
-        Возвращает список пар (parent_index, next_char)
-        """
-        dictionary = {b"": 0}  # Пустая строка с индексом 0
+        dictionary = {}
         next_code = 1
         result = []
-        
         i = 0
+        
+        # Инициализируем пустую строку
+        dictionary[b""] = 0
+        
         while i < len(data):
-            current_str = b""
+            # Начинаем с пустой строки
+            current_match = b""
+            longest_match = b""
             parent = 0
             
-            # Ищем самую длинную строку, уже имеющуюся в словаре
+            # Ищем совпадение, начиная с текущей позиции
             for j in range(i, len(data)):
-                test_str = current_str + bytes([data[j]])
-                if test_str in dictionary:
-                    current_str = test_str
-                    parent = dictionary[test_str]
+                current_match += bytes([data[j]])
+                
+                if current_match in dictionary:
+                    # Нашли совпадение - запоминаем
+                    longest_match = current_match
+                    parent = dictionary[current_match]
                 else:
-                    # Нашли новую строку
+                    # Больше не совпадает
                     break
             
-            # Если current_str пустая (символ не найден в словаре)
-            if not current_str:
-                next_char = data[i]
-                parent = 0
-                i += 1
-            else:
-                # Текущая строка есть в словаре, берем следующий символ
-                if i + len(current_str) < len(data):
-                    next_char = data[i + len(current_str)]
+            if len(longest_match) > 0:
+                # Нашли совпадение в словаре
+                # Следующий символ
+                next_pos = i + len(longest_match)
+                if next_pos < len(data):
+                    next_char = data[next_pos]
                 else:
-                    next_char = 0  # Конец файла
-                i += len(current_str) + 1
-            
-            # Добавляем новую строку в словарь
-            new_str = current_str + bytes([next_char]) if current_str else bytes([next_char])
-            dictionary[new_str] = next_code
-            next_code += 1
-            
-            # Сохраняем пару (P, a)
-            result.append((parent, next_char))
+                    next_char = 0
+                
+                result.append((parent, next_char))
+                
+                # Добавляем новую строку в словарь
+                new_str = longest_match + bytes([next_char]) if next_char != 0 else longest_match
+                dictionary[new_str] = next_code
+                next_code += 1
+                
+                i += len(longest_match) + (1 if next_char != 0 else 0)
+            else:
+                # Нет совпадения - литерал
+                result.append((0, data[i]))
+                
+                # Добавляем в словарь
+                dictionary[bytes([data[i]])] = next_code
+                next_code += 1
+                
+                i += 1
         
         return result
     
@@ -98,38 +107,6 @@ class LZ78:
             packed.append(char & 0xFF)
         
         return bytes(packed)
-    
-    def _pack_variable_bit(self, pairs):
-        """Упаковка с переменной длиной P (минимальный код)"""
-        bit_stream = []
-        
-        for i, (parent, char) in enumerate(pairs):
-            # Определяем минимальную длину для P
-            # На шаге m номер P ∈ {0, 1, ..., m-1}
-            m = i + 1  # Текущий шаг (начинаем с 1)
-            bits_for_p = max(1, (m-1).bit_length()) if m > 1 else 1
-            
-            # Если parent = 0 и это первый шаг, можно использовать 0 бит
-            if i == 0 and parent == 0:
-                bits_for_p = 0
-            
-            # Кодируем P
-            if bits_for_p > 0:
-                bit_stream.append(format(parent, f'0{bits_for_p}b'))
-            
-            # Кодируем символ (8 бит)
-            bit_stream.append(format(char, '08b'))
-        
-        # Конвертируем биты в байты
-        bit_string = ''.join(bit_stream)
-        while len(bit_string) % 8 != 0:
-            bit_string += '0'
-        
-        result = bytearray()
-        for i in range(0, len(bit_string), 8):
-            result.append(int(bit_string[i:i+8], 2))
-        
-        return bytes(result)
     
     def compress_file(self, input_file):
         """Создает контейнер с LZ78-сжатием"""
@@ -178,8 +155,8 @@ class LZ78:
             
             # Отладочная информация
             print(f"Количество пар (P,a): {len(lz78_pairs)}")
-            if len(lz78_pairs) > 0:
-                print(f"Пример первых 5 пар: {lz78_pairs[:5]}")
+            if (len(lz78_pairs) < 10): print(f"Пары: {lz78_pairs}")
+                
             
         except FileNotFoundError:
             print(f"Ошибка: Файл {input_file} не найден")
